@@ -5,7 +5,7 @@
 # onenm_local_llm
 
 [![pub package](https://img.shields.io/pub/v/onenm_local_llm.svg)](https://pub.dev/packages/onenm_local_llm)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](../LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Android-green.svg)]()
 
 **Run local LLMs in Flutter apps with just a few lines of code.**
@@ -294,7 +294,7 @@ final ai = OneNm(model: myModel);
 ## Project Structure
 
 ```
-onenm_local_llm/
+flutter-llama.cpp/
 ├── lib/                              # Dart public API
 │   ├── onenm_local_llm.dart          #   OneNm class
 │   ├── models.dart                   #   ModelInfo, ChatTemplate, GenerationSettings
@@ -355,10 +355,10 @@ The plugin ships with prebuilt llama.cpp libraries for `arm64-v8a`. If you need 
 
 ## License
 
-This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License — see the [LICENSE](../LICENSE) file for details.
 
 llama.cpp is licensed under the MIT License. See [llama.cpp LICENSE](https://github.com/ggml-org/llama.cpp/blob/master/LICENSE).
 
 ## Contributing
 
-We welcome contributions to improve **onenm_local_llm**! At this stage, contributions are limited to adding new models to the model registry and testing them. Please see [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
+We welcome contributions to improve **onenm_local_llm**! At this stage, contributions are limited to adding new models to the model registry and testing them. Please see [CONTRIBUTING.md](../CONTRIBUTING.md) for detailed guidelines.

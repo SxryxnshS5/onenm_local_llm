@@ -4,7 +4,7 @@ description: >-
   Simplifies model management, loading, and multi-turn chat — no cloud,
   no API keys, fully offline.
 version: 0.1.3
-repository: https://github.com/SxryxnshS5/onenm_local_llm
+repository: https://github.com/SxryxnshS5/onenm_local_llm/tree/main/flutter-llama.cpp
 issue_tracker: https://github.com/SxryxnshS5/onenm_local_llm/issues
 topics:
   - ai
