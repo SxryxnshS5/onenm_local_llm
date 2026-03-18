@@ -245,8 +245,23 @@ class OneNm {
     return modelPath;
   }
 
+  /// Checks for internet connectivity before attempting to download the model.
+  Future<bool> _hasInternetConnection() async {
+    try {
+      final result = await InternetAddress.lookup('example.com');
+      return result.isNotEmpty && result[0].rawAddress.isNotEmpty;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Downloads the GGUF model file with up to 3 retry attempts.
   Future<void> _downloadModel(String modelPath) async {
+    if (!await _hasInternetConnection()) {
+      throw Exception(
+          'No internet connection. Please check your network and try again.');
+    }
+
     const maxAttempts = 3;
     for (int attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
