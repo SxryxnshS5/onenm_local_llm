@@ -32,7 +32,7 @@ _Screenshot / GIF coming soon._
 - **Multi-turn chat** — built-in conversation history and per-model chat templates (Zephyr, Phi-2, etc.).
 - **Configurable sampling** — temperature, top-k, top-p, repeat penalty, max tokens.
 - **Simple API** — `initialize()`, `chat()`, `dispose()` — that's all you need.
-- **Retry logic** — automatic retries with exponential backoff for downloads and model loading.
+- **Retry logic** — automatic retries with exponential backoff for downloads and model loading, plus an optional retry callback so apps can show a retry button when internet is unavailable or disconnects mid-download.
 
 ## Supported Models
 
@@ -103,6 +103,12 @@ import 'package:onenm_local_llm/onenm_local_llm.dart';
 final ai = OneNm(
   model: OneNmModel.tinyllama,
   onProgress: (status) => print(status),
+  onRetryRequired: (message) async {
+    // Show a retry button/dialog in your app and return:
+    // true  -> retry download
+    // false -> stop and throw the error
+    return true;
+  },
 );
 
 // Download (if needed) and load the model
@@ -133,10 +139,11 @@ The main entry point for the plugin.
 
 ```dart
 OneNm({
-  required ModelInfo model,           // Which model to use
-  GenerationSettings settings,        // Sampling parameters (optional)
-  OneNmProgressCallback? onProgress,  // Status callback (optional)
-  bool debug = false,                 // Enable verbose [1nm] logs
+  required ModelInfo model,                // Which model to use
+  GenerationSettings settings,             // Sampling parameters (optional)
+  OneNmProgressCallback? onProgress,       // Status callback (optional)
+  OneNmRetryCallback? onRetryRequired,     // Lets your app show a retry button/dialog
+  bool debug = false,                      // Enable verbose [1nm] logs
 })
 ```
 
@@ -161,6 +168,40 @@ final ai = OneNm(
 
 // Then in your build():
 Text(status)  // Shows live progress to the user
+```
+
+#### `onRetryRequired` — Showing a Retry Button
+
+The optional `onRetryRequired` callback is triggered when there is no internet connection before download starts, or when internet gets disconnected while downloading. This package does not render UI itself, so your app can use this callback to show a simple retry button, dialog, or snackbar.
+
+Return `true` to retry the download, or `false` to stop and let the plugin throw the error.
+
+```dart
+final ai = OneNm(
+  model: OneNmModel.tinyllama,
+  onProgress: (msg) => setState(() => status = msg),
+  onRetryRequired: (message) async {
+    return await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => AlertDialog(
+            title: const Text('Download paused'),
+            content: Text(message),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+  },
+);
 ```
 
 #### Methods
@@ -326,6 +367,7 @@ The plugin ships with prebuilt llama.cpp libraries for `arm64-v8a`. If you need 
 
 1. Clone [llama.cpp](https://github.com/ggml-org/llama.cpp)
 2. Build for Android arm64-v8a using the NDK:
+
    ```bash
    mkdir build-android && cd build-android
    cmake .. \
@@ -334,6 +376,7 @@ The plugin ships with prebuilt llama.cpp libraries for `arm64-v8a`. If you need 
      -DANDROID_PLATFORM=android-21
    make -j$(nproc)
    ```
+
 3. Copy the resulting `.so` files to `android/src/main/jniLibs/arm64-v8a/`
 4. Copy the public headers to `android/src/main/cpp/llama/`
 
