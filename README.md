@@ -1,6 +1,10 @@
-
 <p align="center">
   <img src="flutter-llama.cpp/assets/banner.png" alt="1nm banner" />
+</p>
+
+<p align="center">
+  <video src="flutter-llama.cpp/assets/demo.mp4" controls width="45%"></video>
+  <img src="flutter-llama.cpp/assets/chat_screenshot.jpeg" width="45%" alt="App screenshot" />
 </p>
 
 # 1nm — Run AI locally in your mobile apps
@@ -40,28 +44,33 @@ final ai = OneNm(model: OneNmModel.qwen25);
 await ai.initialize();
 
 final reply = await ai.chat('Hello!');
-````
+```
 
 That’s it. You now have **on-device AI running inside your app**.
+
+<p align="center">
+  <video src="flutter-llama.cpp/assets/demo.mp4" controls width="35%"></video>
+  <img src="flutter-llama.cpp/assets/chat_screenshot.jpeg" width="35%" alt="App screenshot" />
+</p>
 
 ---
 
 ## 🔥 Why 1nm?
 
-* ⚡ **Fast** — runs directly on-device
-* 🔒 **Private** — no data leaves the user’s phone
-* 💸 **Zero API cost** — no tokens, no billing
-* 🧩 **Simple integration** — minimal setup, clean APIs
-* 📱 **Built for mobile** — not a desktop tool forced onto phones
+- ⚡ **Fast** — runs directly on-device
+- 🔒 **Private** — no data leaves the user’s phone
+- 💸 **Zero API cost** — no tokens, no billing
+- 🧩 **Simple integration** — minimal setup, clean APIs
+- 📱 **Built for mobile** — not a desktop tool forced onto phones
 
 ---
 
 ## 🧱 What it handles for you
 
-* Model download & storage
-* Native runtime integration
-* Memory & performance handling
-* Multi-turn chat
+- Model download & storage
+- Native runtime integration
+- Memory & performance handling
+- Multi-turn chat
 
 So you can focus on building features — not infrastructure.
 
@@ -94,11 +103,11 @@ Start with Flutter:
 
 ## 🛣 Roadmap
 
-* Kotlin SDK
-* iOS support
-* More model options
-* Performance improvements
-* Additional language bindings
+- Kotlin SDK
+- iOS support
+- More model options
+- Performance improvements
+- Additional language bindings
 
 ---
 
