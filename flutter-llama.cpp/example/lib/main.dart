@@ -8,7 +8,10 @@
 /// - Initialise the plugin with a model and progress callback.
 /// - Use `ai.chat()` for multi-turn conversation.
 /// - Display messages in a Material 3 chat UI with typing indicators.
+/// - Show a retry action if download fails due to no internet or disconnects.
 library;
+
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:onenm_local_llm/onenm_local_llm.dart';
@@ -61,7 +64,11 @@ class _ChatScreenState extends State<ChatScreen> {
 
   late final OneNm ai = OneNm(
     model: OneNmModel.tinyllama,
-    onProgress: (msg) => setState(() => _initStatus = msg),
+    onProgress: (msg) {
+      if (!mounted) return;
+      setState(() => _initStatus = msg);
+    },
+    onRetryRequired: _showRetryDialog,
   );
 
   @override
@@ -70,17 +77,76 @@ class _ChatScreenState extends State<ChatScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _init());
   }
 
+  /// Simple retry dialog shown when the package reports that the user
+  /// should be given a retry option.
+  Future<bool> _showRetryDialog(String message) async {
+    if (!mounted) return false;
+
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Download paused'),
+          content: Text(message),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Retry'),
+            ),
+          ],
+        );
+      },
+    );
+
+    return result ?? false;
+  }
+
   Future<void> _init() async {
     try {
+      if (mounted) {
+        setState(() {
+          _ready = false;
+          _initStatus = 'Initializing...';
+        });
+      }
+
       await ai.initialize();
-      setState(() => _ready = true);
+
+      if (!mounted) return;
+      setState(() {
+        _ready = true;
+        _initStatus = 'Ready';
+      });
+    } on TimeoutException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _ready = false;
+        _initStatus =
+            'Initialization timed out: ${e.message ?? 'Please try again.'}';
+      });
+    } on StateError catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _ready = false;
+        _initStatus = 'State error: $e';
+      });
     } catch (e) {
-      setState(() => _initStatus = 'Error: $e');
+      if (!mounted) return;
+      setState(() {
+        _ready = false;
+        _initStatus = 'Error: $e';
+      });
     }
   }
 
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
           _scrollController.position.maxScrollExtent,
@@ -93,7 +159,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> _send() async {
     final text = _controller.text.trim();
-    if (text.isEmpty || _generating) return;
+    if (text.isEmpty || _generating || !_ready) return;
 
     _controller.clear();
     setState(() {
@@ -104,22 +170,49 @@ class _ChatScreenState extends State<ChatScreen> {
 
     try {
       final reply = await ai.chat(text);
+
+      if (!mounted) return;
       setState(() {
-        _messages.add(_ChatMessage(reply.trim(), isUser: false));
+        _messages.add(
+          _ChatMessage(
+            reply.trim().isEmpty ? '[Empty response]' : reply.trim(),
+            isUser: false,
+          ),
+        );
+        _generating = false;
+      });
+    } on StateError catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _messages.add(_ChatMessage('Error: $e', isUser: false));
+        _generating = false;
+      });
+    } on TimeoutException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _messages.add(
+          _ChatMessage(
+            'Request timed out: ${e.message ?? 'Please try again.'}',
+            isUser: false,
+          ),
+        );
         _generating = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _messages.add(_ChatMessage('Error: $e', isUser: false));
         _generating = false;
       });
     }
+
     _scrollToBottom();
   }
 
   @override
   void dispose() {
-    ai.dispose();
+    // Dispose safely without awaiting inside dispose.
+    unawaited(ai.dispose());
     _controller.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -154,11 +247,14 @@ class _ChatScreenState extends State<ChatScreen> {
             Expanded(
               child: _messages.isEmpty
                   ? const Center(
-                      child: Text('Send a message to start chatting'))
+                      child: Text('Send a message to start chatting'),
+                    )
                   : ListView.builder(
                       controller: _scrollController,
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 8),
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
                       itemCount: _messages.length + (_generating ? 1 : 0),
                       itemBuilder: (context, index) {
                         if (index == _messages.length) {
@@ -170,12 +266,14 @@ class _ChatScreenState extends State<ChatScreen> {
                               child: SizedBox(
                                 width: 24,
                                 height: 24,
-                                child:
-                                    CircularProgressIndicator(strokeWidth: 2),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
                               ),
                             ),
                           );
                         }
+
                         final msg = _messages[index];
                         return _MessageBubble(msg: msg);
                       },
@@ -198,8 +296,10 @@ class _ChatScreenState extends State<ChatScreen> {
                         decoration: const InputDecoration(
                           hintText: 'Type a message...',
                           border: OutlineInputBorder(),
-                          contentPadding:
-                              EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
                         ),
                       ),
                     ),

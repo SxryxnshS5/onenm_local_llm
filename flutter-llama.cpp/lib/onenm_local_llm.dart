@@ -25,6 +25,14 @@ export 'models.dart';
 /// download and loading (e.g. `"Downloading TinyLlama 1.1B Chat (42.3%)"`).
 typedef OneNmProgressCallback = void Function(String status);
 
+/// Called when a retry should be shown to the user.
+///
+/// This package does not render UI itself, so apps can use this callback
+/// to show a simple retry button/dialog/snackbar and return:
+/// - `true`  -> retry download
+/// - `false` -> stop and throw
+typedef OneNmRetryCallback = Future<bool> Function(String message);
+
 /// High-level API for on-device LLM inference.
 ///
 /// [OneNm] handles the full lifecycle: downloading the GGUF model from
@@ -62,6 +70,10 @@ class OneNm {
   /// Optional callback for download/load progress updates.
   final OneNmProgressCallback? onProgress;
 
+  /// Optional callback the app can use to show a retry button when
+  /// internet is unavailable or the download fails.
+  final OneNmRetryCallback? onRetryRequired;
+
   /// When `true`, detailed `[1nm]` logs are printed to the debug console.
   ///
   /// Includes timing information for model loading, generation, etc.
@@ -78,11 +90,13 @@ class OneNm {
   /// * [model] — which LLM to use (see [OneNmModel] for built-in options).
   /// * [settings] — sampling parameters; defaults are suitable for chat.
   /// * [onProgress] — optional callback for download / load status messages.
+  /// * [onRetryRequired] — lets the host app show a retry button if needed.
   /// * [debug] — enable verbose `[1nm]` logs in the debug console.
   OneNm({
     required this.model,
     this.settings = const GenerationSettings(),
     this.onProgress,
+    this.onRetryRequired,
     this.debug = false,
   });
 
@@ -255,58 +269,137 @@ class OneNm {
     }
   }
 
-  /// Downloads the GGUF model file with up to 3 retry attempts.
-  Future<void> _downloadModel(String modelPath) async {
-    if (!await _hasInternetConnection()) {
-      throw Exception(
-          'No internet connection. Please check your network and try again.');
+  /// Lets the host app show a retry button/dialog when needed.
+  Future<bool> _requestUserRetry(String message) async {
+    _report(message);
+
+    if (onRetryRequired == null) return false;
+
+    try {
+      return await onRetryRequired!(message);
+    } catch (_) {
+      return false;
     }
+  }
 
-    const maxAttempts = 3;
-    for (int attempt = 1; attempt <= maxAttempts; attempt++) {
-      try {
-        _report('Downloading ${model.name} (~${model.sizeMB} MB)...'
-            '${attempt > 1 ? ' (attempt $attempt/$maxAttempts)' : ''}');
-
-        final request = http.Request('GET', Uri.parse(model.ggufUrl));
-        final response = await http.Client().send(request);
-
-        if (response.statusCode != 200) {
-          throw Exception('HTTP ${response.statusCode}');
+  /// Downloads the GGUF model file with up to 3 retry attempts.
+  ///
+  /// If there is no internet at the start, or internet is lost while
+  /// downloading, [onRetryRequired] can be used by the app to show a
+  /// retry button and continue only when the user taps retry.
+  Future<void> _downloadModel(String modelPath) async {
+    while (true) {
+      if (!await _hasInternetConnection()) {
+        final shouldRetry = await _requestUserRetry(
+          'No internet connection. Please check your network and tap retry.',
+        );
+        if (shouldRetry) {
+          continue;
         }
+        throw Exception(
+          'No internet connection. Please check your network and try again.',
+        );
+      }
 
-        final totalBytes = response.contentLength ?? model.sizeMB * 1024 * 1024;
-        int receivedBytes = 0;
+      const maxAttempts = 3;
+      bool restartFromUserRetry = false;
 
-        final file = File(modelPath);
-        final sink = file.openWrite();
-        await for (final chunk in response.stream) {
-          sink.add(chunk);
-          receivedBytes += chunk.length;
-          final pct = (receivedBytes / totalBytes * 100).toStringAsFixed(1);
-          final recvMB = (receivedBytes / 1024 / 1024).toStringAsFixed(1);
-          final totalMB = (totalBytes / 1024 / 1024).toStringAsFixed(1);
-          _report('Downloading ${model.name}...\n'
-              '$recvMB / $totalMB MB ($pct%)');
+      for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+        http.Client? client;
+        IOSink? sink;
+
+        try {
+          _report('Downloading ${model.name} (~${model.sizeMB} MB)...'
+              '${attempt > 1 ? ' (attempt $attempt/$maxAttempts)' : ''}');
+
+          client = http.Client();
+          final request = http.Request('GET', Uri.parse(model.ggufUrl));
+          final response = await client.send(request);
+
+          if (response.statusCode != 200) {
+            throw Exception('HTTP ${response.statusCode}');
+          }
+
+          final totalBytes =
+              response.contentLength ?? model.sizeMB * 1024 * 1024;
+          int receivedBytes = 0;
+
+          final file = File(modelPath);
+          if (await file.exists()) {
+            await file.delete();
+          }
+
+          sink = file.openWrite();
+
+          await for (final chunk in response.stream) {
+            sink.add(chunk);
+            receivedBytes += chunk.length;
+
+            final pct = (receivedBytes / totalBytes * 100).toStringAsFixed(1);
+            final recvMB = (receivedBytes / 1024 / 1024).toStringAsFixed(1);
+            final totalMB = (totalBytes / 1024 / 1024).toStringAsFixed(1);
+
+            _report('Downloading ${model.name}...\n'
+                '$recvMB / $totalMB MB ($pct%)');
+          }
+
+          await sink.close();
+          sink = null;
+          client.close();
+          client = null;
+
+          // Verify file size
+          final size = await file.length();
+          final expectedMin = model.sizeMB * 0.95 * 1024 * 1024;
+          if (size < expectedMin) {
+            await file.delete();
+            throw Exception(
+              'Download incomplete: ${(size / 1024 / 1024).toStringAsFixed(1)} MB',
+            );
+          }
+
+          _report('Download complete');
+          return;
+        } catch (e) {
+          try {
+            await sink?.close();
+          } catch (_) {}
+          client?.close();
+
+          // Remove partial file so retry starts cleanly.
+          final file = File(modelPath);
+          if (await file.exists()) {
+            await file.delete();
+          }
+
+          final hasInternetNow = await _hasInternetConnection();
+          final isLastAttempt = attempt == maxAttempts;
+
+          // If internet dropped or all automatic retries are used up,
+          // let the app show a retry button.
+          if (!hasInternetNow || isLastAttempt) {
+            final shouldRetry = await _requestUserRetry(
+              !hasInternetNow
+                  ? 'Internet connection lost while downloading. Please reconnect and tap retry.'
+                  : 'Download failed: $e\nTap retry to try again.',
+            );
+
+            if (shouldRetry) {
+              restartFromUserRetry = true;
+              break;
+            }
+
+            rethrow;
+          }
+
+          final delay = Duration(seconds: 2 << (attempt - 1)); // 2s, 4s
+          _report('Download failed: $e\nRetrying in ${delay.inSeconds}s...');
+          await Future.delayed(delay);
         }
-        await sink.close();
+      }
 
-        // Verify file size
-        final size = await file.length();
-        final expectedMin = model.sizeMB * 0.95 * 1024 * 1024;
-        if (size < expectedMin) {
-          await file.delete();
-          throw Exception(
-              'Download incomplete: ${(size / 1024 / 1024).toStringAsFixed(1)} MB');
-        }
-
-        _report('Download complete');
-        return;
-      } catch (e) {
-        if (attempt == maxAttempts) rethrow;
-        final delay = Duration(seconds: 2 << (attempt - 1)); // 2s, 4s
-        _report('Download failed: $e\nRetrying in ${delay.inSeconds}s...');
-        await Future.delayed(delay);
+      if (!restartFromUserRetry) {
+        break;
       }
     }
   }
