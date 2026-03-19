@@ -19,9 +19,13 @@ It removes the complexity of **setting up native runtimes, model loading, and in
 
 ## Demo
 
-<!-- TODO: Add a screenshot or GIF of the example chat app in action -->
+<p align="center">
+  <img src="assets/chat_screenshot.jpeg" width="40%" alt="App screenshot" />
+</p>
 
-_Screenshot / GIF coming soon._
+<p align="center">
+  <a href="https://drive.google.com/file/d/1VBVnR_PuW4YN1B55S-YTZXo62AIxt93u/view?usp=sharing">▶️ Watch the demo video here</a>
+</p>
 
 ---
 
