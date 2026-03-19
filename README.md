@@ -2,11 +2,6 @@
   <img src="flutter-llama.cpp/assets/banner.png" alt="1nm banner" />
 </p>
 
-<p align="center">
-  <video src="flutter-llama.cpp/assets/demo.mp4" controls width="45%"></video>
-  <img src="flutter-llama.cpp/assets/chat_screenshot.jpeg" width="45%" alt="App screenshot" />
-</p>
-
 # 1nm — Run AI locally in your mobile apps
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -49,8 +44,11 @@ final reply = await ai.chat('Hello!');
 That’s it. You now have **on-device AI running inside your app**.
 
 <p align="center">
-  <video src="flutter-llama.cpp/assets/demo.mp4" controls width="35%"></video>
-  <img src="flutter-llama.cpp/assets/chat_screenshot.jpeg" width="35%" alt="App screenshot" />
+  <img src="flutter-llama.cpp/assets/chat_screenshot.jpeg" width="40%" alt="App screenshot" />
+</p>
+
+<p align="center">
+  <a href="https://drive.google.com/file/d/1VBVnR_PuW4YN1B55S-YTZXo62AIxt93u/view?usp=sharing">▶️ Watch the demo video here</a>
 </p>
 
 ---
